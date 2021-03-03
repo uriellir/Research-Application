@@ -35,8 +35,8 @@ class Graph(object):
         self.density = None
         self.shortest_paths = None
         self.modularity_matrix = None
-        self.degree = None
-        self.efficiency = None
+        self.degrees = None
+        self.locals_efficiency = None
 
     def getVertex(self, n):
         if n in self.masterList:
@@ -68,11 +68,11 @@ class Graph(object):
         df = pandas.read_csv(file_csv)
         print(file_csv,"-> inside create edges")
         edges = []
-        for col in range(0, 23):
-            for row in range(0, 23):
-                if df[str(col)][row] == 1:
-                    edges.append((col + 1, row + 1))
-        print(edges,"-> inside create edges")
+        for row in range(0, 23):
+            for col in range(0, 23):
+                if df[str(row)][col] == 1:
+                    edges.append((row + 1, col + 1))
+        print("inside create edges -> ",edges)
         return edges
 
     def create_nodes(self, edges):
@@ -90,15 +90,17 @@ class Graph(object):
         fixed_nodes = fixed_positions.keys()
         pos = networkx.spring_layout(G, pos=fixed_positions, fixed=fixed_nodes)
         networkx.draw_networkx(G, pos)
-        plt.savefig(self.patient_name+".png")
-        plt.show()
+        plt.savefig(self.patient_name+".png",format="PNG")
+        plt.clf()
+        # plt.show()
         #   ----- Updating Local Parameters of the Graph ------ #
         self.density = self.density_calc(G)
-        self.shortest_paths = self.shortets_path(G)
+        self.shortest_paths = self.average_shortest_path(self.shortets_path(G)) # g.average_shortest_path(g.shortest_paths)
         self.modularity_matrix = self.modularity_matrix_calc(G)
         #   ----- Updating Local Parameters of the Graph ------ #
-        self.degree = G.degree()
-        self.efficiency = [networkx.global_efficiency(G.subgraph(set(G) - {i})) for i in range(1,24)]
+        self.degrees = self.nodes_degree(edges)
+        self.locals_efficiency = self.local_efficiency(G)
+
         # divided = numpy.divide(1,list(networkx.single_source_shortest_path_length(G, 9).values()))
         # print(divided)
         # divided = numpy.where(divided==numpy.inf,numpy.nan,divided)
@@ -113,11 +115,76 @@ class Graph(object):
 
     def shortets_path(self, graph):
         """ This function calculates the shortest paths between all the nodes using floyd-warshall algorithm"""
-        return networkx.floyd_warshall(graph)
+        calc = networkx.floyd_warshall(graph)
+        return calc
+
+    def average_shortest_path(self, paths_dict):
+        print("inside avg s. path")
+        print(paths_dict[2])
+        print(paths_dict[1][1])
+        print(paths_dict[1][2])
+        sum = 0
+        full_sum = 0
+        for dict in range(1,24):
+            for node in paths_dict[dict]:
+                if paths_dict[dict][node] == float("inf"):
+                    continue
+                else:
+                    sum = sum + paths_dict[dict][node]
+            print(sum)
+            full_sum = full_sum + sum
+            sum = 0
+        avg_shortest_path = full_sum/(22*23)
+        print(full_sum)
+        return avg_shortest_path
+
 
     def modularity_matrix_calc(self, graph):
         """ This function calculates the modularity matrix"""
         return networkx.modularity_matrix(graph)
+
+    def nodes_degree(self,edges):
+        degree_matrix = [0] * 23
+        print("graph edges -> ",edges)
+        for node in edges:
+            if(node[0] == node[1]):
+                continue
+            else:
+                degree_matrix[node[0]-1] += 1
+        print("degree matrix -> ",degree_matrix)
+        return degree_matrix
+
+    def local_efficiency(self, graph):
+        from functools import reduce
+        lst = []
+        for i in range(1,24):
+            kes = networkx.single_source_shortest_path_length(graph, i).values()
+            if(len(kes)==1):
+                lst.append(0)
+            else:
+                kes = filter(lambda x: x > 0, kes)
+                redres = reduce(lambda x, y: x + (1 / y), kes)
+                temp = 1 / (23 * 22)
+                res = temp * redres
+                lst.append(res)
+        return lst
+
+    def min_degree(self):
+        min = 100
+        for node in self.degrees:
+            if node < min:
+                min = node
+
+        return min
+
+    def max_degree(self):
+        max = 0
+        for node in self.degrees:
+            if node > max:
+                max = node
+
+        return max
+
 
 if __name__ == '__main__':
     # patient = Patient("1","2",'3','4')
@@ -127,26 +194,23 @@ if __name__ == '__main__':
 
     g = Graph()
 
-    # for col in range(len(resu_binary)):
-    #     for row in range(0, 23):
-    #         if resu_binary[col][row] == 1:
-    #             g.addEdge(col + 1, row + 1, 0)
-    #
-    # for vertex in g.masterList:
-    #     print(vertex, " -> ", g.getVertex(vertex).getConnections())
+    gra = g.create_nodes(g.create_edges('Uriel5-D'))
+    # print(g.degrees)
+    # print(g.degrees[0])
+    # print(g.degrees[22])
+    # print(gra.number_of_edges(1,1))
 
-
-
-    gra = g.create_nodes(g.create_edges('Uriel Lirr'))
-    print(type(gra))
-    print(g.density)
-    floywarsh = g.shortest_paths
-    print(floywarsh[1][11])
-    shortpath = dict(networkx.all_pairs_shortest_path(gra))
-    print(g.shortest_paths)
-    print(g.shortest_paths[7][6])
-    print(g.modularity_matrix[0,0])
-    print("degree -> ",g.degree)
-    print(g.degree[10])
-    print("efficiency -> ", g.efficiency)
-    print(g.efficiency[10])
+    # print(g.local_efficiency(gra))
+    # print(type(gra))
+    # print(g.density)
+    # floywarsh = g.shortest_paths
+    # print(floywarsh[1][11])
+    # shortpath = dict(networkx.all_pairs_shortest_path(gra))
+    # print(gra.shortest_paths)
+    # print(g.average_shortest_path(g.shortest_paths))
+    print(g.shortets_path(gra))
+    # print(g.modularity_matrix[0,0])
+    # print("degree -> ",g.degree)
+    # print(g.degree[10])
+    # print("efficiency -> ", g.efficiency)
+    # print(g.efficiency[10])
